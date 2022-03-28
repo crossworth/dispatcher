@@ -5,7 +5,7 @@ package main
 
 import (
 	"time"
-	
+
 	"github.com/crossworth/dispatcher"
 )
 
@@ -20,24 +20,24 @@ func ptr[T any](input T) *T {
 
 func main() {
 	dp := dispatcher.NewDispatcher()
-	
-	dp.Register(dispatcher.NewRegistration(func(input int) {
+
+	dp.Register(dispatcher.HandlerFunc(func(input int) {
 		println(input)
 	}))
 
-	dp.Register(dispatcher.NewRegistration(func(input *int) {
+	dp.Register(dispatcher.HandlerFunc(func(input *int) {
 		println(input)
 	}))
 
-	dp.Register(dispatcher.NewRegistration(func(input string) {
+	dp.Register(dispatcher.HandlerFunc(func(input string) {
 		println(input)
 	}))
 
-	dp.Register(dispatcher.NewRegistration(func(input string) {
+	dp.Register(dispatcher.HandlerFunc(func(input string) {
 		println(input)
 	}))
 
-	dp.Register(dispatcher.NewRegistration(func(input customEvent) {
+	dp.Register(dispatcher.HandlerFunc(func(input customEvent) {
 		println(input.ID)
 		println(input.Name)
 	}))
@@ -51,6 +51,8 @@ func main() {
 	})
 	time.Sleep(300 * time.Millisecond)
 }
+
+// Result:
 // 10
 // abc
 // 0xc000018400
