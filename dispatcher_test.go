@@ -112,3 +112,39 @@ func TestDispatcher_DispatchOnce(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestDispatcher_Unregister(t *testing.T) {
+	dp := NewDispatcher()
+	calls := int32(0)
+	callsMu := sync.Mutex{}
+
+	handlerID := dp.Register(HandlerFuncOnce(func(input int) {
+		callsMu.Lock()
+		calls++
+		callsMu.Unlock()
+
+		if input != 10 {
+			t.Fail()
+		}
+	}))
+
+	time.Sleep(1 * time.Millisecond)
+
+	dp.Dispatch(10)
+
+	time.Sleep(5 * time.Millisecond)
+
+	dp.Unregister(handlerID)
+
+	time.Sleep(5 * time.Millisecond)
+
+	dp.Dispatch(10)
+
+	time.Sleep(5 * time.Millisecond)
+
+	callsMu.Lock()
+	defer callsMu.Unlock()
+	if calls != 1 {
+		t.Fatalf("got wrong number of calls, %d", calls)
+	}
+}

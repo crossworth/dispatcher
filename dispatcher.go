@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -13,13 +14,14 @@ type handlerRecord struct {
 // Dispatcher is a generic dispatcher.
 type Dispatcher[T any] struct {
 	mu       sync.RWMutex
-	handlers map[string][]handlerRecord
+	handlers map[string]handlerRecord
+	counter  int64
 }
 
 // NewDispatcher creates a new *Dispatcher[any].
 func NewDispatcher() *Dispatcher[any] {
 	return &Dispatcher[any]{
-		handlers: map[string][]handlerRecord{},
+		handlers: map[string]handlerRecord{},
 	}
 }
 
@@ -73,15 +75,26 @@ func HandlerFuncOnce[T any](handlerFunc func(input T)) Handler {
 
 // Register registers the provided handler
 // on the dynamic dispatcher.
-func (d *Dispatcher[T]) Register(handler Handler) {
+func (d *Dispatcher[T]) Register(handler Handler) string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.counter++
 
-	typ := fmt.Sprintf("%T", handler.handlerType())
-	d.handlers[typ] = append(d.handlers[typ], handlerRecord{
+	handlerID := fmt.Sprintf("%T_%d", handler.handlerType(), d.counter)
+
+	d.handlers[handlerID] = handlerRecord{
 		handlerFunc:     handler.handlerFunc(),
 		executionPolicy: handler.executionPolicy(),
-	})
+	}
+
+	return handlerID
+}
+
+// Unregister unregister the provided handlerID.
+func (d *Dispatcher[T]) Unregister(handlerID string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	delete(d.handlers, handlerID)
 }
 
 // Dispatch dispatches the provided event
@@ -91,17 +104,22 @@ func (d *Dispatcher[T]) Dispatch(event T) {
 	defer d.mu.RUnlock()
 
 	typ := fmt.Sprintf("%T", event)
-	handlers, found := d.handlers[typ]
-	if !found {
-		return
-	}
+	for key, handler := range d.handlers {
+		keyType := extractType(key)
 
-	for i := 0; i < len(handlers); i++ {
-		handler := handlers[i]
+		if keyType != typ {
+			continue
+		}
+
 		handler.handlerFunc.(func(input T))(event)
 
 		if handler.executionPolicy == "once" {
-			d.handlers[typ] = append(d.handlers[typ][:i], d.handlers[typ][i+1:]...)
+			delete(d.handlers, key)
 		}
 	}
+}
+
+func extractType(handlerID string) string {
+	parts := strings.Split(handlerID, "_")
+	return parts[0]
 }
