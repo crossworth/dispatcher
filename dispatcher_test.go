@@ -82,3 +82,33 @@ func TestDispatcher_Dispatch(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	ensureCalls()
 }
+
+func TestDispatcher_DispatchOnce(t *testing.T) {
+	dp := NewDispatcher()
+
+	calls := int32(0)
+	callsMu := sync.Mutex{}
+
+	dp.Register(HandlerFuncOnce(func(input int) {
+		callsMu.Lock()
+		calls++
+		callsMu.Unlock()
+
+		if input != 10 {
+			t.Fail()
+		}
+	}))
+	dp.Dispatch(10)
+	dp.Dispatch(10)
+	dp.Dispatch(10)
+	dp.Dispatch(10)
+	dp.Dispatch(10)
+
+	time.Sleep(100 * time.Millisecond)
+
+	callsMu.Lock()
+	defer callsMu.Unlock()
+	if calls != 1 {
+		t.Fail()
+	}
+}

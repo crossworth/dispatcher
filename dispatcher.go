@@ -5,16 +5,21 @@ import (
 	"sync"
 )
 
+type handlerRecord struct {
+	handlerFunc     any
+	executionPolicy string
+}
+
 // Dispatcher is a generic dispatcher.
 type Dispatcher[T any] struct {
 	mu       sync.RWMutex
-	handlers map[string][]any
+	handlers map[string][]handlerRecord
 }
 
 // NewDispatcher creates a new *Dispatcher[any].
 func NewDispatcher() *Dispatcher[any] {
 	return &Dispatcher[any]{
-		handlers: map[string][]any{},
+		handlers: map[string][]handlerRecord{},
 	}
 }
 
@@ -23,11 +28,13 @@ func NewDispatcher() *Dispatcher[any] {
 type Handler interface {
 	handlerType() any
 	handlerFunc() func(input any)
+	executionPolicy() string
 }
 
 type handler struct {
 	typ     any
 	handler func(input any)
+	policy  string
 }
 
 func (r handler) handlerType() any {
@@ -38,6 +45,10 @@ func (r handler) handlerFunc() func(input any) {
 	return r.handler
 }
 
+func (r handler) executionPolicy() string {
+	return r.policy
+}
+
 // HandlerFunc creates a new dispatcher Handler.
 func HandlerFunc[T any](handlerFunc func(input T)) Handler {
 	return handler{
@@ -45,6 +56,18 @@ func HandlerFunc[T any](handlerFunc func(input T)) Handler {
 		handler: func(input any) {
 			handlerFunc(input.(T))
 		},
+		policy: "always",
+	}
+}
+
+// HandlerFuncOnce creates a new dispatcher Handler that only executes once.
+func HandlerFuncOnce[T any](handlerFunc func(input T)) Handler {
+	return handler{
+		typ: *new(T),
+		handler: func(input any) {
+			handlerFunc(input.(T))
+		},
+		policy: "once",
 	}
 }
 
@@ -55,7 +78,10 @@ func (d *Dispatcher[T]) Register(handler Handler) {
 	defer d.mu.Unlock()
 
 	typ := fmt.Sprintf("%T", handler.handlerType())
-	d.handlers[typ] = append(d.handlers[typ], handler.handlerFunc())
+	d.handlers[typ] = append(d.handlers[typ], handlerRecord{
+		handlerFunc:     handler.handlerFunc(),
+		executionPolicy: handler.executionPolicy(),
+	})
 }
 
 // Dispatch dispatches the provided event
@@ -70,7 +96,12 @@ func (d *Dispatcher[T]) Dispatch(event T) {
 		return
 	}
 
-	for _, handler := range handlers {
-		handler.(func(input T))(event)
+	for i := 0; i < len(handlers); i++ {
+		handler := handlers[i]
+		handler.handlerFunc.(func(input T))(event)
+
+		if handler.executionPolicy == "once" {
+			d.handlers[typ] = append(d.handlers[typ][:i], d.handlers[typ][i+1:]...)
+		}
 	}
 }
