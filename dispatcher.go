@@ -18,8 +18,13 @@ type Dispatcher[T any] struct {
 	counter  int64
 }
 
-// NewDispatcher creates a new *Dispatcher[any].
-func NewDispatcher() *Dispatcher[any] {
+// AnyDispatcher is a type alias
+// for making the function signature more
+// compact.
+type AnyDispatcher = *Dispatcher[any]
+
+// NewDispatcher creates a new AnyDispatcher.
+func NewDispatcher() AnyDispatcher {
 	return &Dispatcher[any]{
 		handlers: map[string]handlerRecord{},
 	}
